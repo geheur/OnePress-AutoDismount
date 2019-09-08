@@ -5,16 +5,16 @@
    <Scripts>
 
       <OnLoad>
-         this:RegisterEvent("VARIABLES_LOADED");
-         this:RegisterEvent("AUCTION_HOUSE_SHOW");
-         this:RegisterEvent("UI_ERROR_MESSAGE");
-         this:RegisterEvent("TAXIMAP_OPENED");
+         self:RegisterEvent("VARIABLES_LOADED");
+         self:RegisterEvent("AUCTION_HOUSE_SHOW");
+         self:RegisterEvent("UI_ERROR_MESSAGE");
+         self:RegisterEvent("TAXIMAP_OPENED");
       </OnLoad>
 
       <OnEvent>
          if (event == "VARIABLES_LOADED") then EzDismount_onload(); end
          if (event == "AUCTION_HOUSE_SHOW") then EzDismount_chkerror("**AUCTION**"); end
-         if (event == "UI_ERROR_MESSAGE") then EzDismount_chkerror(arg1); end
+         if (event == "UI_ERROR_MESSAGE") then EzDismount_chkerror(...); end
          if (event == "TAXIMAP_OPENED") then EzDismount_chkerror("**TAXI**"); end
       </OnEvent>
 

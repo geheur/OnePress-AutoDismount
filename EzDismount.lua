@@ -13,7 +13,7 @@ EzDismount_fullver = ("EzDismount " .. EzDismount_ver);
 function EzDismount_onload()
 
 	EzDClass = UnitClass("player");
-	EzDPlayer = (UnitName("player").." of "..GetCVar("realmName"))
+	EzDPlayer = (UnitName("player").." of "..GetRealmName())
 	EZDismount_DetPlayer:SetText(EzDPlayer.." Server");
 
 	--Create user table if it doesnt exist
@@ -297,10 +297,9 @@ end
 ------------------------
 -- Check UI Events Event
 ------------------------
-function EzDismount_chkerror(arg1)
-
+function EzDismount_chkerror(errorId, errorMessage)
    -- Stand up if you are trying to do something while sitting
-   if ( arg1 == EzDSitErr )  then
+   if (errorMessage == EzDSitErr )  then
       if (EzDismount_Config[EzDPlayer]["Stand"] == "ON") then
          SitOrStand();
       end
@@ -308,7 +307,7 @@ function EzDismount_chkerror(arg1)
    end
    
     -- Flightpath Dismount enabled
-   if ( arg1 == "**TAXI**" ) then
+   if (errorMessage == "**TAXI**" ) then
       if (EzDismount_Config[EzDPlayer]["Dismount"] == "ON") then
          EzD_dismount("N");
       end
@@ -316,7 +315,7 @@ function EzDismount_chkerror(arg1)
    end
 
    -- Auctioneer Dismount enabled
-   if ( arg1 == "**AUCTION**" ) then
+   if (errorMessage == "**AUCTION**" ) then
       if (EzDismount_Config[EzDPlayer]["Auction"] == "ON") then
          EzD_dismount("N");
       end
@@ -326,7 +325,7 @@ function EzDismount_chkerror(arg1)
    -- Mount Error
    if ( not UnitOnTaxi("player") ) then
       for _, value in pairs(EzDMountErr.Error) do
-          if ( arg1 == value ) then
+          if (errorMessage == value ) then
              if (EzDismount_Config[EzDPlayer]["Dismount"] == "ON") then
                 EzD_dismount("N");
              end
@@ -338,7 +337,7 @@ function EzDismount_chkerror(arg1)
    -- Shapeshift Error
    if ( not UnitOnTaxi("player") ) then
       for _, value in pairs(EzDShiftErr.Error) do
-          if ( arg1 == value) then
+          if (errorMessage == value) then
              EzD_unshift();
              return;
           end
@@ -409,6 +408,9 @@ end
 -- Cancel Shapeshift Buff
 -------------------------
 function EzD_unshift()
+
+	CancelShapeshiftForm()
+	if true then return end
 
    local shifttable = nil;
 
