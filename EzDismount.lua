@@ -349,26 +349,17 @@ end
 --------------------------------------------------------------
 -- Look for Mount Buff Icon and cancel it (Alternate Function)
 --------------------------------------------------------------
-function EzD_getdown(ignoreflying)
+function EzD_getdown()
 
-  EzD_dismount(ignoreflying);
+  EzD_dismount();
 
 end
 
 -----------------------------
 -- Dismount/Cancel Mount Buff
 -----------------------------
-function EzD_dismount(ignoreflying)
+function EzD_dismount()
   
-   if (ignoreflying ~= "Y") and (ignoreflying ~= "N") then
-      ignoreflying = "N";
-   end
-
-   -- If Flying, don't dismount unless we want to take that risk (ignoreflying)
-   if ( IsFlying() and ignoreflying ~= "Y" )   then
-      return;
-   end
-
    Dismount();
   
    -- Should we drop a shapeshift? only if Linked Checkbox is selected
@@ -544,7 +535,7 @@ end
 
 
 --------------------------------------------------------------------------
--- Dump current Buffs to chat window, also show Mounted and Flying Status
+-- Dump current Buffs to chat window, also show Mounted Status
 -------------------------------------------------------------------------
 function EzDismount_debug()
 
@@ -558,12 +549,6 @@ function EzDismount_debug()
       EzD_chat("Mounted : Yes");
    else
       EzD_chat("Mounted : No");
-   end
-
-   if IsFlying() then
-      EzD_chat("Flying : Yes");
-   else
-      EzD_chat("Flying : No");
    end
 
    EzD_chat("- Current Buff List -");

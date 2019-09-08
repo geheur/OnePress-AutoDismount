@@ -15,10 +15,6 @@ EzDHelp = {
                      "Type /ezd reset     Reset Configuration",
                      "Type /ezd reload   Reload UI",
                      "Type /ezd debug   Print debug info",
-                     " ",
-                     "Available macro functions :",
-                     "/script EzD_getdown()            Dismounts you if not flying",
-                     "/script EzD_getdown(\"Y\")       Dismounts even if flying"
                     },
  };
 
