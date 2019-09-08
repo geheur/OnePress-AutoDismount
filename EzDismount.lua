@@ -301,7 +301,7 @@ function EzDismount_chkerror(errorId, errorMessage)
    -- Stand up if you are trying to do something while sitting
    if (errorMessage == EzDSitErr )  then
       if (EzDismount_Config[EzDPlayer]["Stand"] == "ON") then
-         SitOrStand();
+         DoEmote("stand")
       end
       return;
    end
