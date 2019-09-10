@@ -698,3 +698,173 @@ function EzD_checkshift()
    EzDismount_Config[EzDPlayer]["LinkShift"]= r;
 
 end
+
+----------------------------------
+-- One click autounshift.
+----------------------------------
+
+--[[
+TODO
+Mouse clicks (important for stuff in bags).
+Support for bar addons.
+Dismount support.
+
+/script getkey("1")
+
+/script getkey("C")
+
+/dump getkey("HOME")
+
+-- hooksecurefunc is a post hook so this probably won't work.
+/script hooksecurefunc("CastSpellByName", function(...) print("bla", ...) end)
+/script hooksecurefunc("CastSpell", function(...) print("bla", ...) end)
+/script hooksecurefunc(CastSpellByName, function(...) print("bla", ...) end)
+/script hooksecurefunc("SecureActionButton_OnClick", function(...) print("bla", ...) CancelShapeshiftForm() end)
+
+/dump ActionButton_GetPagedID("MULTIACTIONBAR4BUTTON7")
+/dump ActionButton_GetPagedID("MultiBarLeftButton7")
+
+/script for i,v in pairs(_G) do if strfind(i, "GetAction") then print(i,v) end end
+/script for i,v in pairs(_G) do if strfind(i, "cast") then print(i,v) end end
+
+/dump ("cats"):match("cats")
+/dump ("ACTIONBUTTON12"):match("ACTIONBUTTON(%d+)")
+/dump ("MULTIACTIONBAR2BUTTON12"):match("MULTIACTIONBAR(%d+)BUTTON(%d+)")
+
+/dump SecureCmdOptionParse("/cast Lightning Bolt")
+/dump SecureCmdOptionParse("/cast [harm]Purge(Rank 1);Cure Poison")
+
+1-12,13-24: ActionButtonN
+MultiBarBottomLeftButton1-12: 61-72 (1)
+MultiBarBottomRightButton1-12: 49-60 (2)
+MultiBarLeftButton1-12: 37-48 (4)
+MultiBarRightButton1-12: 25-36 (3)
+--]]
+
+--[[
+/dump IsUsableSpell("Hearthstone")
+/dump IsUsableItem("Hearthstone")
+--]]
+
+local function getButtonForBinding(bindingName)
+	local buttonNum = bindingName:match("ACTIONBUTTON(%d+)")
+	if buttonNum then return _G["ActionButton"..buttonNum] end
+
+	local barNum, buttonNum = bindingName:match("MULTIACTIONBAR(%d+)BUTTON(%d+)")
+	if barNum and buttonNum and tonumber(barNum) >= 1 and tonumber(barNum) <= 4 then
+		local buttonName = (
+			barNum == "1" and "MultiBarBottomLeftButton" or
+			barNum == "2" and "MultiBarBottomRightButton" or
+			barNum == "3" and "MultiBarRightButton" or
+			"MultiBarLeftButton"
+		)..buttonNum
+		return _G[buttonName]
+	end
+	-- return nil
+
+	-- error("unrecognized binding \""..bindingName.."\"")
+end
+
+local function getActionButtonSpell(button)
+	local action = button.action
+	if not action then return end
+
+	-- print("button is", button)
+	-- print("action", action)
+	local type, id, subtype = GetActionInfo(action)
+	-- print(type, id, subtype)
+	return type, id
+end
+
+local function getkey(button)
+	-- print(GetBindingAction(button), GetBindingByKey(button))
+	local bindingName = GetBindingByKey(button)
+
+	if bindingName == nil then
+		-- print("binding is nil")
+		return
+	end
+
+	if bindingName:find("^SPELL") then
+		return "spell", bindingName:match("SPELL%s(.*)")
+	elseif bindingName:find("^MACRO") then
+		return "macro", bindingName:match("MACRO%s(.*)")
+	elseif bindingName:find("^ITEM") then
+		return "item", bindingName:match("ITEM%s(.*)")
+	else
+		local button
+		if bindingName:find("^CLICK") then
+			local buttonName, keyToClickWith = bindingName:match("CLICK%s(.*):(.*)")
+			-- print(buttonName, keyToClickWith)
+			button = _G[buttonName]
+		else
+			button = getButtonForBinding(bindingName)
+		end
+
+		if not button then return end
+		return getActionButtonSpell(button)
+	end
+end
+
+local function addModifiersToBaseKeyName(baseKeyName)
+	local t = {}
+	-- Order matters! "SHIFT-ALT-T" is not a valid keybind!
+	t[#t+1] = IsAltKeyDown() and "ALT" or nil
+	t[#t+1] = IsControlKeyDown() and "CTRL" or nil
+	t[#t+1] = IsShiftKeyDown() and "SHIFT" or nil
+	t[#t+1] = baseKeyName
+	return table.concat(t, "-")
+end
+
+local playerIsMoving = false
+
+local function decideToCancelForm(type, spell)
+	if type == "spell" then
+		local usable, nomana = IsUsableSpell(spell)
+		local startTime, cd = GetSpellCooldown(spell)
+		local spellName,_,_,castTime,_,_,_ = GetSpellInfo(spell)
+		local inRange = IsSpellInRange(spellName, UnitExists("target") and "target" or "player") -- TODO check whether user has autoselfcast? Or, maybe just use "target" as it will return nil for self cast spells which is fine.
+		-- Unfortunately, we will still unshapeshift for the "Invalid target" error. This is not a downgrade over 2-press EzDismount however.
+		if not usable and not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
+			CancelShapeshiftForm()
+		end
+	elseif type == "item" then
+		local usable, mysteryreturnvalue = IsUsableItem(spell)
+		local startTime, cd = GetSpellCooldown(spell)
+		if mysteryreturnvalue then Message(spell.." has second return value true!") end
+		if not usable and cd == 0 then
+			CancelShapeshiftForm()
+		end
+	elseif type == "macro" then
+		print("type is macro")
+		local _,_,body,_ = GetMacroInfo(spell)
+		print("SecureCmdOptionParse", SecureCmdOptionParse(body))
+
+		decideToCancelForm(typeResult, spellResult)
+	else error("unknown type") end
+end
+
+f = CreateFrame("Frame")
+f:EnableKeyboard(true)
+f:SetPropagateKeyboardInput(true)
+f:RegisterEvent("PLAYER_STARTED_MOVING")
+f:RegisterEvent("PLAYER_STOPPED_MOVING")
+f:RegisterEvent("UI_ERROR_MESSAGE")
+f:SetScript("OnEvent", function(self, event, ...)
+	if event == "UI_ERROR_MESSAGE" and strfind(select(1, ...), "shapeshift") then print("Should have cancelled form!", ...) end
+	if event == "PLAYER_STARTED_MOVING" then
+		playerIsMoving = true
+	elseif event == "PLAYER_STOPPED_MOVING" then
+		playerIsMoving = false
+	end
+end)
+f:SetScript("OnKeyDown", function(self, key)
+	key = addModifiersToBaseKeyName(key)
+
+	local type, spell = getkey(key)
+	if not type then return end
+	print(key, "\""..type.."\"", spell)
+
+	decideToCancelForm(type, spell)
+end)
+
