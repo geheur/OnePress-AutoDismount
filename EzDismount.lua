@@ -310,7 +310,7 @@ function EzDismount_chkerror(errorId, errorMessage)
     -- Flightpath Dismount enabled
    if (errorMessage == "**TAXI**" ) then
       if (EzDismount_Config[EzDPlayer]["Dismount"] == "ON") then
-         EzD_dismount("N");
+         EzD_dismount();
       end
       return;
    end
@@ -318,7 +318,7 @@ function EzDismount_chkerror(errorId, errorMessage)
    -- Auctioneer Dismount enabled
    if (errorMessage == "**AUCTION**" ) then
       if (EzDismount_Config[EzDPlayer]["Auction"] == "ON") then
-         EzD_dismount("N");
+         EzD_dismount();
       end
       return;
    end
@@ -328,7 +328,7 @@ function EzDismount_chkerror(errorId, errorMessage)
       for _, value in pairs(EzDMountErr.Error) do
           if (errorMessage == value ) then
              if (EzDismount_Config[EzDPlayer]["Dismount"] == "ON") then
-                EzD_dismount("N");
+                EzD_dismount();
              end
              return;
           end
