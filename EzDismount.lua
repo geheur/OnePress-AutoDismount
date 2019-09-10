@@ -302,6 +302,7 @@ function EzDismount_chkerror(errorId, errorMessage)
    if (errorMessage == EzDSitErr )  then
       if (EzDismount_Config[EzDPlayer]["Stand"] == "ON") then
          DoEmote("stand")
+			UIErrorsFrame:Clear()
       end
       return;
    end
@@ -338,8 +339,8 @@ function EzDismount_chkerror(errorId, errorMessage)
    if ( not UnitOnTaxi("player") ) then
       for _, value in pairs(EzDShiftErr.Error) do
           if (errorMessage == value) then
-             EzD_unshift();
-             return;
+             EzD_unshift()
+				 UIErrorsFrame:Clear()
           end
       end
    end
