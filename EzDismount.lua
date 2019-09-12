@@ -39,7 +39,7 @@ function EzDismount_onload()
 	-- Set Default Colors
 	EZDismount_ShamanTitle:SetTextColor(255,255,255,255);
 	EZDismount_DruidTitle:SetTextColor(255,255,255,255);
-    	EZDismount_PriestTitle:SetTextColor(255,255,255,255);
+	EZDismount_PriestTitle:SetTextColor(255,255,255,255);
 	EzDismount_Text_Status_VOFF:SetTextColor(255,0,0,255);
 	EzDismount_Text_Status_VON:SetTextColor(0,255,0,255);
 	EzDismount_Text_Shaman_VOFF:SetTextColor(255,0,0,255);
@@ -708,6 +708,7 @@ TODO
 Mouse clicks (important for stuff in bags).
 Support for bar addons.
 Dismount support.
+Spell queueing - will it queue spells while you're in shapeshift form, or do I need to check if the cooldown of a spell is < 400ms rather than that it is zero?
 
 /script getkey("1")
 
@@ -745,6 +746,8 @@ MultiBarRightButton1-12: 25-36 (3)
 /dump IsUsableSpell("Hearthstone")
 /dump IsUsableItem("Hearthstone")
 --]]
+
+local debug = true
 
 local function getButtonForBinding(bindingName)
 	local buttonNum = bindingName:match("ACTIONBUTTON(%d+)")
@@ -818,6 +821,10 @@ end
 
 local playerIsMoving = false
 
+local function Stand()
+	if not playerIsMoving then DoEmote("stand") end -- Standing while moving will trigger an error message.
+end
+
 local function decideToCancelForm(type, spell)
 	if type == "spell" then
 		local usable, nomana = IsUsableSpell(spell)
@@ -827,15 +834,20 @@ local function decideToCancelForm(type, spell)
 		-- Unfortunately, we will still unshapeshift for the "Invalid target" error. This is not a downgrade over 2-press EzDismount however.
 		if not usable and not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
 			CancelShapeshiftForm()
+			Stand()
 		end
 	elseif type == "item" then
 		local usable, mysteryreturnvalue = IsUsableItem(spell)
 		local startTime, cd = GetSpellCooldown(spell)
-		if mysteryreturnvalue then Message(spell.." has second return value true!") end
 		if not usable and cd == 0 then
 			CancelShapeshiftForm()
+			Stand()
 		end
+
+		if debug and mysteryreturnvalue then Message(spell.." has second return value true!") end
 	elseif type == "macro" then
+		if true or not debug then return end
+
 		print("type is macro")
 		local _,_,body,_ = GetMacroInfo(spell)
 		print("SecureCmdOptionParse", SecureCmdOptionParse(body))
@@ -844,27 +856,156 @@ local function decideToCancelForm(type, spell)
 	else error("unknown type") end
 end
 
-f = CreateFrame("Frame")
+local function isShapeshiftedOrMounted() -- TODO remove.
+	return GetShapeshiftForm(true) ~= 0 or IsMounted()
+end
+
+--[[
+/script local f=CreateFrame("Frame")f:RegisterEvent("UI_ERROR_MESSAGE")f:SetScript("OnEvent",function(self,event,...)DoEmote("stand")end)f:EnableKeyboard(true)f:SetPropagateKeyboardInput(true)f:SetScript("OnKeyDown",function(self,key)DoEmote("stand")end)
+/script local f=CreateFrame("Frame")f:RegisterEvent("UI_ERROR_MESSAGE")f:SetScript("OnEvent",function(self,event,...)DoEmote("stand")end)f:EnableKeyboard(true)f:SetPropagateKeyboardInput(true)f:SetScript("OnKeyDown",function(self,key)DoEmote("stand")end)
+--]]
+
+
+local actionButtonNames = {"ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton", "MultiBarLeftButton", "MultiBarRightButton"}
+function getActionButtons()
+	local n = 1
+	return function()
+		if n > 60 then return end
+		
+		local button = _G[actionButtonNames[math.floor((n - 1) / 12) + 1]..((n - 1) % 12 + 1)]
+
+		n = n + 1
+		return button
+	end
+end
+
+local hookedActionButtonsOwner = CreateFrame("BUTTON", nil, nil, "SecureHandlerClickTemplate,SecureActionButtonTemplate")
+hookedActionButtonsOwner:RegisterForClicks("AnyDown")
+function hookedActionButtonsOwner:stand()
+	if debug then print("standing from actionbutton mouse click") end
+	DoEmote("stand")
+end -- TODO can I have this function in F instead?
+local function hookActionButton(button)
+	hookedActionButtonsOwner:WrapScript(button, "OnClick", (debug and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('stand')")
+end
+
+local function hookActionButtons()
+	for button in getActionButtons() do
+		hookActionButton(button)
+	end
+end
+
+-- Actually setting stuff up that isn't defining functions.
+
+hookActionButtons()
+
+local f = CreateFrame("Frame")
 f:EnableKeyboard(true)
 f:SetPropagateKeyboardInput(true)
 f:RegisterEvent("PLAYER_STARTED_MOVING")
 f:RegisterEvent("PLAYER_STOPPED_MOVING")
 f:RegisterEvent("UI_ERROR_MESSAGE")
 f:SetScript("OnEvent", function(self, event, ...)
-	if event == "UI_ERROR_MESSAGE" and strfind(select(1, ...), "shapeshift") then print("Should have cancelled form!", ...) end
+	if debug then if event == "UI_ERROR_MESSAGE" and strfind(select(1, ...), "shapeshift") then print("Should have cancelled form!", ...) end end
 	if event == "PLAYER_STARTED_MOVING" then
 		playerIsMoving = true
 	elseif event == "PLAYER_STOPPED_MOVING" then
 		playerIsMoving = false
 	end
 end)
+-- TODO consider hooking the keyup? May matter especially for spellbook where dragging probably would dismount you.
 f:SetScript("OnKeyDown", function(self, key)
 	key = addModifiersToBaseKeyName(key)
 
 	local type, spell = getkey(key)
 	if not type then return end
-	print(key, "\""..type.."\"", spell)
+	-- if debug then print(key, "\""..type.."\"", spell) end
 
 	decideToCancelForm(type, spell)
 end)
+
+--[[
+ContainerFrame[1-5]Item[1-n]
+--]]
+
+-- if debug and false then
+if debug and false then
+	local lastFrame
+	WorldFrame:HookScript("OnUpdate", function(self, button)
+		local frame = GetMouseFocus()
+		if frame == lastFrame then return end
+		lastFrame = frame
+		if not frame then print("frame is nil") return end
+
+		local type, spell = getActionButtonSpell(frame)
+		if type and spell then
+			print("action button", type, spell)
+			return
+		end
+
+		local bagIndex, itemIndex = frame:GetName():match("ContainerFrame(%d)Item(%d+)")
+		if bagIndex and itemIndex then
+			local _, itemCount, locked, quality, readable, lootable, itemLink, isFiltered, noValue, itemID = GetContainerItemInfo(bagIndex - 1 --[[backback is 0 in this case even though it's 1 in the frame's name]], itemIndex)
+			print("bag item", itemID)
+			return
+		end
+
+		print("new frame, type unknown")
+	end)
+end
+
+--[[
+-- /dump UnitName("mouseover")
+-- /dump GameTooltip:GetUnit()
+
+#showtooltip Charge
+#show Charge
+/cast Battle Stance
+/cast Charge
+
+#showtooltip Hamstring
+#show Hamstring
+/cast [stance:2] Battle Stance
+/cast Hamstring
+
+WorldFrame:HookScript("OnMouseDown", function(self, button)
+	print("onmousedown")
+	local frame = GetMouseFocus()
+	if frame == lastFrame then return end
+	lastFrame = frame
+	if not frame then print("frame is nil") return end
+
+	local type, spell = getActionButtonSpell(frame)
+	if type and spell then
+		print("action button", type, spell)
+		decideToCancelForm(type, spell)
+		return
+	end
+
+	local bagIndex, itemIndex = frame:GetName():match("ContainerFrame(%d)Item(%d+)")
+	if bagIndex and itemIndex then
+		local _, itemCount, locked, quality, readable, lootable, itemLink, isFiltered, noValue, itemID = GetContainerItemInfo(bagIndex - 1, itemIndex) -- backback is 0 in this case even though it's 1 in the frame's name
+		print("bag item", itemID)
+		decideToCancelForm("item", itemID)
+		return
+	end
+
+	print("new frame, type unknown")
+end)
+--]]
+
+
+--[[
+/script function ActionButton4:stand() print("standing") DoEmote("stand") end -- TODO can I have this function in F instead?
+/script f:UnwrapScript(ActionButton4, "OnClick") -- TODO why doesn't the after script run?
+--]]
+
+--[[
+/script ActionButton4:HookScript("OnClick", function() print("standing") DoEmote("stand") end) -- BAD
+
+/script levelmin=30 levelmax=50
+/script levelmin=50 levelmax=60
+/script levelmin=1 levelmax=60
+
+/script PickupContainerItem(0, 2) PickupInventoryItem("MainHandSlot") PickupContainerItem(0, 3) PickupInventoryItem("OffHandSlot")--]]
 
