@@ -21,29 +21,31 @@ local MountErrorMessages = {
 
 local f = CreateFrame("FRAME")
 f:RegisterEvent("UI_ERROR_MESSAGE")
+f:RegisterEvent("AUCTION_HOUSE_SHOW")
+f:RegisterEvent("TAXIMAP_OPENED")
 f:SetScript("OnEvent", function(self, event, errorId, errorMessage)
-	if errorMessage == SitErrorMessage then
-		DoEmote("stand")
-		UIErrorsFrame:Clear()
-	elseif errorMessage == "**TAXI**" then
-		Dismount()
-	elseif errorMessage == "**AUCTION**" then
-		Dismount()
-	elseif not UnitOnTaxi("player") then
-		for _,message in ipairs(MountErrorMessages) do
-			 if errorMessage == message then
-				Dismount()
-				UIErrorsFrame:Clear()
-				return
-			 end
+	if event == "UI_ERROR_MESSAGE" then
+		if errorMessage == SitErrorMessage then
+			DoEmote("stand")
+			UIErrorsFrame:Clear()
+		elseif not UnitOnTaxi("player") then
+			for _,message in ipairs(MountErrorMessages) do
+				 if errorMessage == message then
+					Dismount()
+					UIErrorsFrame:Clear()
+					return
+				 end
+			end
+			for _,message in ipairs(ShapeshiftErrorMessages) do
+				 if errorMessage == value then
+					 CancelShapeshiftForm()
+					 UIErrorsFrame:Clear()
+					 return
+				 end
+			end
 		end
-		for _,message in ipairs(ShapeshiftErrorMessages) do
-			 if errorMessage == value then
-				 CancelShapeshiftForm()
-				 UIErrorsFrame:Clear()
-				 return
-			 end
-		end
+	elseif event == "TAXIMAP_OPENED" or event == "AUCTION_HOUSE_SHOW" then
+		Dismount()
 	end
 end)
 
