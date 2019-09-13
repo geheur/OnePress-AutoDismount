@@ -1,8 +1,5 @@
 ## Interface: 20003
-## Title: EzDismount
-## Author: Gaddur
-## Notes: Dismounts you when doing an action not allowed on a mount, also cancels Druid/Shaman/Priest shapeshifts
-## SavedVariables: EzDismount_Config
+## Title: One-press Dismount/Unshapeshift/Standup
+## Author: geheur
+TwoPress.lua
 OnePress.lua
-EzDismount_tables.lua
-EzDismount.xml
