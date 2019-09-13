@@ -1,4 +1,8 @@
-local debug = true
+local addonName, addonTable = ...
+
+--[[
+/script EzDismount.debug = true
+--]]
 
 local function getButtonForBinding(bindingName)
 	local buttonNum = bindingName:match("ACTIONBUTTON(%d+)")
@@ -80,8 +84,12 @@ local function decideToCancelForm(type, spell)
 		local spellName,_,_,castTime,_,_,_ = GetSpellInfo(spell)
 		local inRange = IsSpellInRange(spellName, UnitExists("target") and "target" or "player") -- TODO check whether user has autoselfcast? Or, maybe just use "target" as it will return nil for self cast spells which is fine.
 		-- Unfortunately, we will still unshapeshift for the "Invalid target" error. This is not a downgrade over 2-press EzDismount however.
-		if not usable and not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
-			CancelShapeshiftForm()
+		if addonTable.debug then print(tostring(not usable and not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving))..":",
+				not usable, not nomana, cd == 0, (not inRange or inRange == 1), (castTime == 0 or not playerIsMoving)) end
+		if not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
+			if not usable then
+				CancelShapeshiftForm()
+			end
 			Stand()
 		end
 	elseif type == "item" then
@@ -92,9 +100,9 @@ local function decideToCancelForm(type, spell)
 			Stand()
 		end
 
-		if debug and mysteryreturnvalue then Message(spell.." has second return value true!") end
+		if addonTable.debug and mysteryreturnvalue then Message(spell.." has second return value true!") end
 	elseif type == "macro" then
-		if true or not debug then return end
+		if true or not addonTable.debug then return end
 
 		print("type is macro")
 		local _,_,body,_ = GetMacroInfo(spell)
@@ -124,11 +132,11 @@ end
 local hookedActionButtonsOwner = CreateFrame("BUTTON", nil, nil, "SecureHandlerClickTemplate,SecureActionButtonTemplate")
 hookedActionButtonsOwner:RegisterForClicks("AnyDown")
 function hookedActionButtonsOwner:stand()
-	if debug then print("standing from actionbutton mouse click") end
+	if addonTable.debug then print("standing from actionbutton mouse click") end
 	DoEmote("stand")
 end -- TODO can I have this function in F instead?
 local function hookActionButton(button)
-	hookedActionButtonsOwner:WrapScript(button, "OnClick", (debug and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('stand')")
+	hookedActionButtonsOwner:WrapScript(button, "OnClick", (addonTable.debug and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('stand')")
 end
 
 local function hookActionButtons()
@@ -148,7 +156,7 @@ f:RegisterEvent("PLAYER_STARTED_MOVING")
 f:RegisterEvent("PLAYER_STOPPED_MOVING")
 f:RegisterEvent("UI_ERROR_MESSAGE")
 f:SetScript("OnEvent", function(self, event, ...)
-	if debug then if event == "UI_ERROR_MESSAGE" and strfind(select(1, ...), "shapeshift") then print("Should have cancelled form!", ...) end end
+	if addonTable.debug then if event == "UI_ERROR_MESSAGE" and strfind(select(1, ...), "shapeshift") then print("Should have cancelled form!", ...) end end
 
 	if event == "PLAYER_STARTED_MOVING" then
 		playerIsMoving = true
@@ -162,12 +170,12 @@ f:SetScript("OnKeyDown", function(self, key)
 
 	local type, spell = getkey(key)
 	if not type then return end
-	-- if debug then print(key, "\""..type.."\"", spell) end
+	if addonTable.debug then print(key, "\""..type.."\"", spell) end
 
 	decideToCancelForm(type, spell)
 end)
 
-if debug and false then
+if addonTable.debug and false then
 	local lastFrame
 	WorldFrame:HookScript("OnUpdate", function(self, button)
 		local frame = GetMouseFocus()

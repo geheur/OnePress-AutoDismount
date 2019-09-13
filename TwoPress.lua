@@ -37,7 +37,7 @@ f:SetScript("OnEvent", function(self, event, errorId, errorMessage)
 				 end
 			end
 			for _,message in ipairs(ShapeshiftErrorMessages) do
-				 if errorMessage == value then
+				 if errorMessage == message then
 					 CancelShapeshiftForm()
 					 UIErrorsFrame:Clear()
 					 return
