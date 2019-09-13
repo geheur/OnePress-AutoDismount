@@ -3,5 +3,6 @@
 ## Author: Gaddur
 ## Notes: Dismounts you when doing an action not allowed on a mount, also cancels Druid/Shaman/Priest shapeshifts
 ## SavedVariables: EzDismount_Config
+OnePress.lua
 EzDismount_tables.lua
 EzDismount.xml
