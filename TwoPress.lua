@@ -1,3 +1,5 @@
+local addonName, addonTable = ...
+
 local SitErrorMessage = SPELL_FAILED_NOT_STANDING
 
 local ShapeshiftErrorMessages = {
@@ -26,11 +28,13 @@ f:RegisterEvent("TAXIMAP_OPENED")
 f:SetScript("OnEvent", function(self, event, errorId, errorMessage)
 	if event == "UI_ERROR_MESSAGE" then
 		if errorMessage == SitErrorMessage then
+			if addonTable.debug then print("twopress FAIL") end
 			DoEmote("stand")
 			UIErrorsFrame:Clear()
 		elseif not UnitOnTaxi("player") then
 			for _,message in ipairs(MountErrorMessages) do
 				 if errorMessage == message then
+					if addonTable.debug then print("twopress FAIL") end
 					Dismount()
 					UIErrorsFrame:Clear()
 					return
@@ -38,9 +42,10 @@ f:SetScript("OnEvent", function(self, event, errorId, errorMessage)
 			end
 			for _,message in ipairs(ShapeshiftErrorMessages) do
 				 if errorMessage == message then
-					 CancelShapeshiftForm()
-					 UIErrorsFrame:Clear()
-					 return
+					if addonTable.debug then print("twopress FAIL") end
+					CancelShapeshiftForm()
+					UIErrorsFrame:Clear()
+					return
 				 end
 			end
 		end

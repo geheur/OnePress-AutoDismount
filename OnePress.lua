@@ -1,8 +1,16 @@
 local addonName, addonTable = ...
+_G[addonName] = addonTable
 
 --[[
 /script EzDismount.debug = true
 --]]
+
+local function debug()
+	return addonTable.debug
+end
+local function dp(...)
+	if debug() then print(...) end
+end
 
 local function getButtonForBinding(bindingName)
 	local buttonNum = bindingName:match("ACTIONBUTTON(%d+)")
@@ -18,9 +26,7 @@ local function getButtonForBinding(bindingName)
 		)..buttonNum
 		return _G[buttonName]
 	end
-	-- return nil
-
-	-- error("unrecognized binding \""..bindingName.."\"")
+	return nil
 end
 
 local function getActionButtonSpell(button)
@@ -32,11 +38,9 @@ local function getActionButtonSpell(button)
 end
 
 local function getkey(button)
-	-- print(GetBindingAction(button), GetBindingByKey(button))
 	local bindingName = GetBindingByKey(button)
 
 	if bindingName == nil then
-		-- print("binding is nil")
 		return
 	end
 
@@ -50,7 +54,6 @@ local function getkey(button)
 		local button
 		if bindingName:find("^CLICK") then
 			local buttonName, keyToClickWith = bindingName:match("CLICK%s(.*):(.*)")
-			-- print(buttonName, keyToClickWith)
 			button = _G[buttonName]
 		else
 			button = getButtonForBinding(bindingName)
@@ -77,16 +80,32 @@ local function Stand()
 	if not playerIsMoving then DoEmote("stand") end -- Standing while moving will trigger an error message.
 end
 
+local function getSpellsCastByMacro(macroBody)
+	local spells = {}
+	for line in macroBody:gmatch("[^\r\n]+") do
+		local n1,n2 = line:find("^/cast")
+		if not n1 then n1,n2 = line:find("^/use") end
+		if n1 then
+			local spellToCast, target = SecureCmdOptionParse(line:sub(n2 + 1))
+			tinsert(spells, spellToCast)
+			dp("line", ":", line, ":", line:sub(n2 + 1), ":", spellToCast)
+		end
+	end
+	return spells
+end
+
 local function decideToCancelForm(type, spell)
 	if type == "spell" then
 		local usable, nomana = IsUsableSpell(spell)
+		local playerClass = select(3, UnitClass("player"))
+		local usesMana = not (playerClass == 1 or playerClass == 4)
 		local startTime, cd = GetSpellCooldown(spell)
 		local spellName,_,_,castTime,_,_,_ = GetSpellInfo(spell)
 		local inRange = IsSpellInRange(spellName, UnitExists("target") and "target" or "player") -- TODO check whether user has autoselfcast? Or, maybe just use "target" as it will return nil for self cast spells which is fine.
 		-- Unfortunately, we will still unshapeshift for the "Invalid target" error. This is not a downgrade over 2-press EzDismount however.
-		if addonTable.debug then print(tostring(not usable and not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving))..":",
-				not usable, not nomana, cd == 0, (not inRange or inRange == 1), (castTime == 0 or not playerIsMoving)) end
-		if not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
+		dp(tostring(not usable and not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving))..":",
+				not usable, (not nomana or not usesMana), cd == 0, (not inRange or inRange == 1), (castTime == 0 or not playerIsMoving))
+		if (not nomana or not usesMana) and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
 			if not usable then
 				CancelShapeshiftForm()
 			end
@@ -100,20 +119,24 @@ local function decideToCancelForm(type, spell)
 			Stand()
 		end
 
-		if addonTable.debug and mysteryreturnvalue then Message(spell.." has second return value true!") end
+		if debug() and mysteryreturnvalue then Message(spell.." has second return value true!") end
 	elseif type == "macro" then
-		if true or not addonTable.debug then return end
-
-		print("type is macro")
 		local _,_,body,_ = GetMacroInfo(spell)
-		print("SecureCmdOptionParse", SecureCmdOptionParse(body))
+		local spells = getSpellsCastByMacro(body)
 
-		decideToCancelForm(typeResult, spellResult)
+		for spellToCast in ipairs(spells) do
+			local s1, s2 = IsUsableSpell(spellToCast)
+			local i1, i2 = IsUsableSpell(spellToCast)
+			local spellType
+			if s1 or s2 then
+				spellType = "spell"
+			elseif i1 or i2 then
+				spellType = "item"
+			end
+			-- spellType == nil might mean that the spell/item cannot be used, or that there's a typo.
+			if spellType then decideToCancelForm(spellType, spellToCast) end
+		end
 	else error("unknown type") end
-end
-
-local function isShapeshiftedOrMounted() -- TODO remove.
-	return GetShapeshiftForm(true) ~= 0 or IsMounted()
 end
 
 local actionButtonNames = {"ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton", "MultiBarLeftButton", "MultiBarRightButton"}
@@ -132,11 +155,11 @@ end
 local hookedActionButtonsOwner = CreateFrame("BUTTON", nil, nil, "SecureHandlerClickTemplate,SecureActionButtonTemplate")
 hookedActionButtonsOwner:RegisterForClicks("AnyDown")
 function hookedActionButtonsOwner:stand()
-	if addonTable.debug then print("standing from actionbutton mouse click") end
-	DoEmote("stand")
-end -- TODO can I have this function in F instead?
+	dp("standing from actionbutton mouse click")
+	Stand()
+end
 local function hookActionButton(button)
-	hookedActionButtonsOwner:WrapScript(button, "OnClick", (addonTable.debug and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('stand')")
+	hookedActionButtonsOwner:WrapScript(button, "OnClick", (debug() and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('stand')")
 end
 
 local function hookActionButtons()
@@ -154,141 +177,20 @@ f:EnableKeyboard(true)
 f:SetPropagateKeyboardInput(true)
 f:RegisterEvent("PLAYER_STARTED_MOVING")
 f:RegisterEvent("PLAYER_STOPPED_MOVING")
-f:RegisterEvent("UI_ERROR_MESSAGE")
 f:SetScript("OnEvent", function(self, event, ...)
-	if addonTable.debug then if event == "UI_ERROR_MESSAGE" and strfind(select(1, ...), "shapeshift") then print("Should have cancelled form!", ...) end end
-
 	if event == "PLAYER_STARTED_MOVING" then
 		playerIsMoving = true
 	elseif event == "PLAYER_STOPPED_MOVING" then
 		playerIsMoving = false
 	end
 end)
--- TODO consider hooking the keyup? May matter especially for spellbook where dragging probably would dismount you.
+-- TODO consider hooking the keyup?
 f:SetScript("OnKeyDown", function(self, key)
 	key = addModifiersToBaseKeyName(key)
 
 	local type, spell = getkey(key)
 	if not type then return end
-	if addonTable.debug then print(key, "\""..type.."\"", spell) end
+	dp(key, "\""..type.."\"", spell)
 
 	decideToCancelForm(type, spell)
 end)
-
-if addonTable.debug and false then
-	local lastFrame
-	WorldFrame:HookScript("OnUpdate", function(self, button)
-		local frame = GetMouseFocus()
-		if frame == lastFrame then return end
-		lastFrame = frame
-		if not frame then print("frame is nil") return end
-
-		local type, spell = getActionButtonSpell(frame)
-		if type and spell then
-			print("action button", type, spell)
-			return
-		end
-
-		local bagIndex, itemIndex = frame:GetName():match("ContainerFrame(%d)Item(%d+)")
-		if bagIndex and itemIndex then
-			local _, itemCount, locked, quality, readable, lootable, itemLink, isFiltered, noValue, itemID = GetContainerItemInfo(bagIndex - 1 --[[backback is 0 in this case even though it's 1 in the frame's name]], itemIndex)
-			print("bag item", itemID)
-			return
-		end
-
-		print("new frame, type unknown")
-	end)
-end
-
---[[
--- TODO
-Add this for items in bags.
-Support for bar addons.
-Dismount support.
-Investigate spell queueing - will it queue spells while you're in shapeshift form, or do I need to check if the cooldown of a spell is < 400ms rather than that it is zero?
-
-Default UI action button names.
-ActionButton1-12: 1-12,13-24
-MultiBarBottomLeftButton1-12: 61-72 (1)
-MultiBarBottomRightButton1-12: 49-60 (2)
-MultiBarLeftButton1-12: 37-48 (4)
-MultiBarRightButton1-12: 25-36 (3)
-
--- Crap:
-
-/script function ActionButton4:stand() print("standing") DoEmote("stand") end -- TODO can I have this function in F instead?
-/script f:UnwrapScript(ActionButton4, "OnClick") -- TODO why doesn't the after script run?
-
-/script ActionButton4:HookScript("OnClick", function() print("standing") DoEmote("stand") end) -- BAD
-
--- hooksecurefunc is a post hook so this probably won't work.
-/script hooksecurefunc("CastSpellByName", function(...) print("bla", ...) end)
-/script hooksecurefunc("CastSpell", function(...) print("bla", ...) end)
-/script hooksecurefunc(CastSpellByName, function(...) print("bla", ...) end)
-/script hooksecurefunc("SecureActionButton_OnClick", function(...) print("bla", ...) CancelShapeshiftForm() end)
-
-/dump ActionButton_GetPagedID("MULTIACTIONBAR4BUTTON7")
-/dump ActionButton_GetPagedID("MultiBarLeftButton7")
-
-/script for i,v in pairs(_G) do if strfind(i, "GetAction") then print(i,v) end end
-/script for i,v in pairs(_G) do if strfind(i, "cast") then print(i,v) end end
-
-/dump ("cats"):match("cats")
-/dump ("ACTIONBUTTON12"):match("ACTIONBUTTON(%d+)")
-/dump ("MULTIACTIONBAR2BUTTON12"):match("MULTIACTIONBAR(%d+)BUTTON(%d+)")
-
-/dump SecureCmdOptionParse("/cast Lightning Bolt")
-/dump SecureCmdOptionParse("/cast [harm]Purge(Rank 1);Cure Poison")
---]]
-
---[[
-Crashing script. Lol.
-/script local f=CreateFrame("Frame")f:RegisterEvent("UI_ERROR_MESSAGE")f:SetScript("OnEvent",function(self,event,...)DoEmote("stand")end)f:EnableKeyboard(true)f:SetPropagateKeyboardInput(true)f:SetScript("OnKeyDown",function(self,key)DoEmote("stand")end)
-/script local f=CreateFrame("Frame")f:RegisterEvent("UI_ERROR_MESSAGE")f:SetScript("OnEvent",function(self,event,...)DoEmote("stand")end)f:EnableKeyboard(true)f:SetPropagateKeyboardInput(true)f:SetScript("OnKeyDown",function(self,key)DoEmote("stand")end)
---]]
-
---[[
-/dump IsUsableSpell("Hearthstone")
-/dump IsUsableItem("Hearthstone")
---]]
-
---[[
--- /dump UnitName("mouseover")
--- /dump GameTooltip:GetUnit()
-
-#showtooltip Charge
-#show Charge
-/cast Battle Stance
-/cast Charge
-
-#showtooltip Hamstring
-#show Hamstring
-/cast [stance:2] Battle Stance
-/cast Hamstring
-
-WorldFrame:HookScript("OnMouseDown", function(self, button)
-	print("onmousedown")
-	local frame = GetMouseFocus()
-	if frame == lastFrame then return end
-	lastFrame = frame
-	if not frame then print("frame is nil") return end
-
-	local type, spell = getActionButtonSpell(frame)
-	if type and spell then
-		print("action button", type, spell)
-		decideToCancelForm(type, spell)
-		return
-	end
-
-	local bagIndex, itemIndex = frame:GetName():match("ContainerFrame(%d)Item(%d+)")
-	if bagIndex and itemIndex then
-		local _, itemCount, locked, quality, readable, lootable, itemLink, isFiltered, noValue, itemID = GetContainerItemInfo(bagIndex - 1, itemIndex) -- backback is 0 in this case even though it's 1 in the frame's name
-		print("bag item", itemID)
-		decideToCancelForm("item", itemID)
-		return
-	end
-
-	print("new frame, type unknown")
-end)
---]]
-
