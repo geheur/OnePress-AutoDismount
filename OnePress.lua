@@ -97,15 +97,13 @@ end
 local function decideToCancelForm(type, spell)
 	if type == "spell" then
 		local usable, nomana = IsUsableSpell(spell)
-		local playerClass = select(3, UnitClass("player"))
-		local usesMana = not (playerClass == 1 or playerClass == 4)
 		local startTime, cd = GetSpellCooldown(spell)
 		local spellName,_,_,castTime,_,_,_ = GetSpellInfo(spell)
 		local inRange = IsSpellInRange(spellName, UnitExists("target") and "target" or "player") -- TODO check whether user has autoselfcast? Or, maybe just use "target" as it will return nil for self cast spells which is fine.
 		-- Unfortunately, we will still unshapeshift for the "Invalid target" error. This is not a downgrade over 2-press EzDismount however.
 		dp(tostring(not usable and not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving))..":",
-				not usable, (not nomana or not usesMana), cd == 0, (not inRange or inRange == 1), (castTime == 0 or not playerIsMoving))
-		if (not nomana or not usesMana) and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
+				not usable, not nomana, cd == 0, (not inRange or inRange == 1), (castTime == 0 or not playerIsMoving))
+		if not nomana and cd == 0 and (not inRange or inRange == 1) and (castTime == 0 or not playerIsMoving) then
 			if not usable then
 				CancelShapeshiftForm()
 			end
@@ -123,8 +121,7 @@ local function decideToCancelForm(type, spell)
 	elseif type == "macro" then
 		local _,_,body,_ = GetMacroInfo(spell)
 		local spells = getSpellsCastByMacro(body)
-
-		for spellToCast in ipairs(spells) do
+		for _,spellToCast in ipairs(spells) do
 			local s1, s2 = IsUsableSpell(spellToCast)
 			local i1, i2 = IsUsableSpell(spellToCast)
 			local spellType
