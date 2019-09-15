@@ -6,7 +6,7 @@ _G[addonName] = addonTable
 --]]
 
 local function debug()
-	return true or addonTable.debug
+	return addonTable.debug
 end
 local function dp(...)
 	if debug() then print(...) end
