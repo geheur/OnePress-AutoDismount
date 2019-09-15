@@ -148,20 +148,6 @@ local function oneIndexedIntegerDivision(dividend, divisor)
 	return math.floor((dividend - 1) / divisor) + 1
 end
 
-local TOTAL_ITEM_FRAMES = 5 * MAX_CONTAINER_ITEMS -- MAX_CONTAINER_ITEMS is defined by blizzard. There are always TOTAL_ITEM_FRAMES buttons, even if they're impossible (like backpack slot 36).
-function getItemButtonsVanillaUi()
-	local n = 1
-	return function()
-		if n > TOTAL_ITEM_FRAMES then return end
-		
-		local containerIndex, itemIndex = oneIndexedIntegerDivision(n, MAX_CONTAINER_ITEMS), oneIndexedModulo(n, MAX_CONTAINER_ITEMS)
-		local button = _G["ContainerFrame"..containerIndex.."Item"..itemIndex]
-
-		n = n + 1
-		return button
-	end
-end
-
 local actionButtonNames = {"ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton", "MultiBarLeftButton", "MultiBarRightButton"}
 function getActionButtonsVanillaUi()
 	local n = 1
@@ -189,11 +175,6 @@ function hookedButtonsOwner:actionButtonPressed(button)
 	dp("pressed", type, spell)
 	decideToCancelForm(type, spell)
 end
-function hookedButtonsOwner:itemButtonPressed(button)
-	local bag, slot = button:GetName():gmatch("ContainerFrame(%d+)Item(%d+)")
-	dp("pressed")
-	decideToCancelForm("item", GetContainerItemId(bag, slot))
-end
 local funcIndex = 1
 local function createFunc(owner, button, func)
 	local name = "func"..funcIndex
@@ -208,12 +189,6 @@ local function hookActionButton(button)
 	hookedButtonsOwner:WrapScript(button, "OnClick", (debug() and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('"..funcName.."', self)")
 end
 
-function hookItemButton(button)
-	local funcName = createFunc(hookedButtonsOwner, button, hookedButtonsOwner.itemButtonPressed)
-	-- Why couldn't they just make IsWrapEligible in SecureHandlers.lua throw an error? Would've saved me like an hour.
-	hookedButtonsOwner:WrapScript(button, "OnClick", (debug() and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('"..funcName.."', self)")
-end
-
 local function hookActionButtons()
 	-- if Bartender4 then
 		-- for button in getActionButtonsBartender() do
@@ -224,10 +199,6 @@ local function hookActionButtons()
 			hookActionButton(button)
 		end
 	-- end
-
-	for button in getItemButtonsVanillaUi() do
-		hookItemButton(button)
-	end
 end
 
 -- Actually setting stuff up that isn't defining functions.
