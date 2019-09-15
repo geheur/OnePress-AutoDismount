@@ -6,7 +6,7 @@ _G[addonName] = addonTable
 --]]
 
 local function debug()
-	return addonTable.debug
+	return true or addonTable.debug
 end
 local function dp(...)
 	if debug() then print(...) end
@@ -136,32 +136,97 @@ local function decideToCancelForm(type, spell)
 	else error("unknown type") end
 end
 
-local actionButtonNames = {"ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton", "MultiBarLeftButton", "MultiBarRightButton"}
-function getActionButtons()
+-- 1 mod n = 1
+-- n mod n = n
+local function oneIndexedModulo(dividend, divisor)
+	return ((dividend - 1) % divisor) + 1
+end
+
+-- 1 / n = 1
+-- n / n = 1
+local function oneIndexedIntegerDivision(dividend, divisor)
+	return math.floor((dividend - 1) / divisor) + 1
+end
+
+local TOTAL_ITEM_FRAMES = 5 * MAX_CONTAINER_ITEMS -- MAX_CONTAINER_ITEMS is defined by blizzard. There are always TOTAL_ITEM_FRAMES buttons, even if they're impossible (like backpack slot 36).
+function getItemButtonsVanillaUi()
 	local n = 1
 	return function()
-		if n > 60 then return end
+		if n > TOTAL_ITEM_FRAMES then return end
 		
-		local button = _G[actionButtonNames[math.floor((n - 1) / 12) + 1]..((n - 1) % 12 + 1)]
+		local containerIndex, itemIndex = oneIndexedIntegerDivision(n, MAX_CONTAINER_ITEMS), oneIndexedModulo(n, MAX_CONTAINER_ITEMS)
+		local button = _G["ContainerFrame"..containerIndex.."Item"..itemIndex]
 
 		n = n + 1
 		return button
 	end
 end
 
-local hookedActionButtonsOwner = CreateFrame("BUTTON", nil, nil, "SecureHandlerClickTemplate,SecureActionButtonTemplate")
-hookedActionButtonsOwner:RegisterForClicks("AnyDown")
-function hookedActionButtonsOwner:stand()
-	dp("standing from actionbutton mouse click")
-	Stand()
+local actionButtonNames = {"ActionButton", "MultiBarBottomLeftButton", "MultiBarBottomRightButton", "MultiBarLeftButton", "MultiBarRightButton"}
+function getActionButtonsVanillaUi()
+	local n = 1
+	return function()
+		if n > 60 then return end
+		
+		local button = _G[actionButtonNames[oneIndexedIntegerDivision(n, 12)]..oneIndexedModulo(n, 12)]
+
+		n = n + 1
+		return button
+	end
+end
+
+--[[
+function getActionButtonsBartender()
+	print("TODO bartender support")
+	-- TODO
+end
+--]]
+
+local hookedButtonsOwner = CreateFrame("BUTTON", nil, nil, "SecureHandlerClickTemplate,SecureActionButtonTemplate")
+hookedButtonsOwner:RegisterForClicks("AnyDown")
+function hookedButtonsOwner:actionButtonPressed(button)
+	local type, spell = getActionButtonSpell(button)
+	dp("pressed", type, spell)
+	decideToCancelForm(type, spell)
+end
+function hookedButtonsOwner:itemButtonPressed(button)
+	local bag, slot = button:GetName():gmatch("ContainerFrame(%d+)Item(%d+)")
+	dp("pressed")
+	decideToCancelForm("item", GetContainerItemId(bag, slot))
+end
+local funcIndex = 1
+local function createFunc(owner, button, func)
+	local name = "func"..funcIndex
+	funcIndex = funcIndex + 1
+	owner[name] = function(self)
+		func(self, button)
+	end
+	return name
 end
 local function hookActionButton(button)
-	hookedActionButtonsOwner:WrapScript(button, "OnClick", (debug() and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('stand')")
+	local funcName = createFunc(hookedButtonsOwner, button, hookedButtonsOwner.actionButtonPressed)
+	hookedButtonsOwner:WrapScript(button, "OnClick", (debug() and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('"..funcName.."', self)")
+end
+
+function hookItemButton(button)
+	local funcName = createFunc(hookedButtonsOwner, button, hookedButtonsOwner.itemButtonPressed)
+	-- Why couldn't they just make IsWrapEligible in SecureHandlers.lua throw an error? Would've saved me like an hour.
+	hookedButtonsOwner:WrapScript(button, "OnClick", (debug() and "print('prehook',button,down,[[owner]],owner,[[control]],control) " or "").."owner:CallMethod('"..funcName.."', self)")
 end
 
 local function hookActionButtons()
-	for button in getActionButtons() do
-		hookActionButton(button)
+	-- if Bartender4 then
+		-- for button in getActionButtonsBartender() do
+			-- hookActionButton(button)
+		-- end
+	-- else
+		for button in getActionButtonsVanillaUi() do
+			hookActionButton(button)
+		end
+	-- end
+
+	for button in getItemButtonsVanillaUi() do
+		hookItemButton(button)
 	end
 end
 
